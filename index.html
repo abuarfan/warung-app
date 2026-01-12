@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WarungKu — Shift</title>
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#0A7855" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="logo">W</div>
+      <div>
+        <div class="brand-title">WarungKu</div>
+        <div class="brand-sub">Mode cepat: catat → harian → bulanan.</div>
+      </div>
+    </div>
+    <button class="btn ghost" id="btnSettings" title="Pengaturan">⚙</button>
+  </header>
+
+  <main class="container">
+
+    <!-- CATAT -->
+    <section class="view" id="view-catat">
+      <div class="card">
+        <div class="card-title">Penjualan</div>
+        <div class="segmented" style="margin:10px 0 0">
+          <button class="seg-btn active" data-session="pagi" id="btnSessPagi">Pagi</button>
+          <button class="seg-btn" data-session="sore" id="btnSessSore">Sore</button>
+        </div>
+
+        <label class="field" style="margin-top:12px">
+          <span>Total penjualan (<span id="sessLabel">Pagi</span>)</span>
+          <input type="number" id="salesTotal" placeholder="mis. 330000" min="0" step="1000">
+        </label>
+<div class="divider"></div>
+        <button class="btn primary w100" id="btnSaveSales">Simpan Penjualan</button>
+        <div class="muted tiny" style="margin-top:8px">
+          Menyimpan ulang sesi yang sama akan <strong>mengganti</strong> angka sebelumnya.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row between">
+          <div>
+            <div class="card-title">Pengeluaran</div>
+            <div class="muted tiny">Pilih: Belanja Stok atau Pengeluaran.</div>
+          </div>
+        </div>
+
+        <div class="segmented" style="margin-top:10px">
+          <button class="seg-btn active" data-exp="stok" id="btnExpStok">Belanja Stok</button>
+          <button class="seg-btn" data-exp="lain" id="btnExpLain">Pengeluaran</button>
+        </div>
+
+        <!-- BELANJA STOK (tanpa qty) -->
+        <div id="panel-stok" style="margin-top:10px">
+          <div class="row between">
+            <div class="muted tiny">Rinci jenis stok (tanpa qty).</div>
+            </div>
+          <div class="stok-box">
+            <div id="stokItems" class="stok-items"></div>
+            <button class="btn outline w100" id="btnAddStokItem" style="margin-top:10px">＋ Tambah item stok</button>
+          </div>
+
+          <div class="row between" style="margin-top:10px">
+            <div class="muted">Total</div>
+            <div class="big" id="stokTotal">Rp 0</div>
+          </div>
+<div class="divider"></div>
+          <button class="btn primary w100" id="btnSaveStok">Simpan Belanja Stok</button>
+        </div>
+
+        <!-- PENGELUARAN LAIN -->
+        <div id="panel-lain" class="hidden" style="margin-top:10px">
+          <div class="item-row single" style="margin-top:0">
+            <label class="field">
+              <span>Jenis pengeluaran</span>
+              <input type="text" id="expType" placeholder="mis. listrik, kontrakan, ongkos">
+            </label>
+            <label class="field">
+              <span>Nominal</span>
+              <input type="number" id="expAmount" placeholder="mis. 25000" min="0" step="500">
+            </label>
+          </div>
+
+          <div class="divider"></div>
+          <button class="btn primary w100" id="btnSaveExpense">Simpan Pengeluaran</button>
+        </div>
+      </div>
+
+      <div class="card soft">
+        <div class="muted tiny">Tips: Semua data tersimpan lokal (offline). Sync Supabase opsional ada di Pengaturan.</div>
+      </div>
+    </section>
+
+    <!-- LAPORAN HARIAN -->
+    <section class="view hidden" id="view-harian">
+      <div class="card">
+        <div class="row between">
+          <div>
+            <div class="card-title">Laporan Harian</div>
+            <div class="muted tiny">Pilih tanggal untuk lihat ringkasan.</div>
+          </div>
+          <label class="field" style="min-width:180px">
+            <span>Tanggal</span>
+            <input type="date" id="dailyDate">
+          </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="kpi-grid">
+          <div class="kpi">
+            <div class="kpi-label">Penjualan (Pagi + Sore)</div>
+            <div class="kpi-value" id="dSales">Rp 0</div>
+            <div class="muted tiny" id="dSalesSplit">Pagi Rp 0 • Sore Rp 0</div>
+          </div>
+          <div class="kpi"><div class="kpi-label">Belanja stok</div><div class="kpi-value" id="dStok">Rp 0</div></div>
+          <div class="kpi"><div class="kpi-label">Pengeluaran</div><div class="kpi-value" id="dExp">Rp 0</div></div>
+          <div class="kpi"><div class="kpi-label">Sisa bersih</div><div class="kpi-value good" id="dNet">Rp 0</div></div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="kpi-grid">
+<div class="kpi">
+            <div class="kpi-label">Saldo berjalan</div>
+            <div class="kpi-value" id="dBalance">Rp 0</div>
+            <div class="muted tiny">Akumulasi transaksi s/d tanggal ini.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Transaksi (tanggal ini)</div>
+        <div id="dailyTxnList" class="list muted">—</div>
+      </div>
+    </section>
+
+    <!-- LAPORAN BULANAN -->
+    <section class="view hidden" id="view-bulanan">
+      <div class="row between">
+        <h2 class="h2">Laporan Bulanan</h2>
+</div>
+
+      <div class="card">
+        <div class="row">
+          <label class="field">
+            <span>Bulan</span>
+            <input type="month" id="reportMonth">
+          </label>
+</div>
+
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-label">Penjualan</div><div class="kpi-value" id="mSales">Rp 0</div></div>
+          <div class="kpi"><div class="kpi-label">Belanja stok</div><div class="kpi-value" id="mStok">Rp 0</div></div>
+          <div class="kpi"><div class="kpi-label">Pengeluaran</div><div class="kpi-value" id="mExp">Rp 0</div></div>
+          <div class="kpi"><div class="kpi-label">Sisa bersih</div><div class="kpi-value good" id="mNet">Rp 0</div></div>
+        </div>
+</div>
+
+      <div class="card">
+        <div class="card-title">Transaksi (bulan ini)</div>
+        <div id="monthTxnList" class="list muted">—</div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-view="catat"><span class="ni-ic">✎</span><span class="ni-tx">Catat</span></button>
+    <button class="nav-item" data-view="harian"><span class="ni-ic">☰</span><span class="ni-tx">Harian</span></button>
+    <button class="nav-item" data-view="bulanan"><span class="ni-ic">▦</span><span class="ni-tx">Bulanan</span></button>
+  </nav>
+
+  <!-- SETTINGS -->
+  <div class="modal hidden" id="modalSettings">
+    <div class="modal-card">
+      <div class="row between">
+        <h3>Pengaturan</h3>
+        <button class="btn ghost" id="btnCloseSettings">✕</button>
+      </div>
+<details class="details">
+        <summary>Advanced: Supabase (opsional)</summary>
+        <div class="grid2">
+          <label class="field">
+            <span>Supabase URL</span>
+            <input type="text" id="setSbUrl" placeholder="https://xxxx.supabase.co">
+          </label>
+          <label class="field">
+            <span>Anon Key</span>
+            <input type="text" id="setSbAnon" placeholder="eyJhbGciOi...">
+          </label>
+        </div>
+        <div class="muted tiny">Kalau diisi, data siap untuk integrasi.</div>
+      </details>
+
+      <div class="divider"></div>
+      <div class="row between">
+        <button class="btn outline" id="btnResetLocal">Reset data lokal</button>
+        <button class="btn primary" id="btnSaveSettings">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./supabaseClient.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
