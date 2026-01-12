@@ -493,7 +493,7 @@ setSalesSession('pagi');
     scheduleSync();
     syncNow();
 
-    if('serviceWorker' in navigator){
+    if('serviceWorker' in navigator && (location.protocol==='http:' || location.protocol==='https:')){
       navigator.serviceWorker.register('./sw.js').catch(()=>{});
     }
   }
