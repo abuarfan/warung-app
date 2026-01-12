@@ -384,7 +384,64 @@ localStorage.setItem('wk_sb_url', ($('#setSbUrl').value||'').trim());
   }
 
   
-  // ===== AUTO-SYNC to Supabase (if configured) =====
+  
+  async function bootstrapSupabase(){
+    const sb = sbReady();
+    if(!sb) return;
+
+    try{
+      // 1) Load categories from remote (source of truth)
+      const { data: remoteCats, error: catErr } = await sb.from('categories').select('id,type,name');
+      if(catErr) throw catErr;
+
+      if(Array.isArray(remoteCats) && remoteCats.length){
+        // Build mapping by (type|name) -> id
+        const map = new Map(remoteCats.map(c=>[`${c.type}||${c.name}`, c.id]));
+        const oldCats = store.categories || [];
+        const newCats = oldCats.map(c=>{
+          const key = `${c.type}||${c.name}`;
+          const rid = map.get(key);
+          return rid ? {...c, id: rid} : c;
+        });
+
+        // migrate existing transactions category_id to remote ids (by matching type+name)
+        const oldIdToKey = new Map(oldCats.map(c=>[c.id, `${c.type}||${c.name}`]));
+        const keyToNewId = new Map(newCats.map(c=>[`${c.type}||${c.name}`, c.id]));
+        if(store.transactions && store.transactions.length){
+          store.transactions = store.transactions.map(t=>{
+            const key = oldIdToKey.get(t.category_id);
+            if(!key) return t;
+            const nid = keyToNewId.get(key);
+            return nid ? {...t, category_id: nid} : t;
+          });
+        }
+        store.categories = newCats;
+      }
+
+      // 2) Load accounts from remote (source of truth)
+      const { data: remoteAcc, error: accErr } = await sb.from('accounts').select('id,name,type,opening_balance');
+      if(accErr) throw accErr;
+
+      if(Array.isArray(remoteAcc) && remoteAcc.length){
+        const oldAcc = store.accounts || [];
+        // take first account as main (Kas Warung)
+        const main = remoteAcc[0];
+        // migrate transactions account_id
+        const oldMainId = oldAcc[0]?.id;
+        if(oldMainId && store.transactions && store.transactions.length){
+          store.transactions = store.transactions.map(t=> t.account_id===oldMainId ? {...t, account_id: main.id} : t);
+        }
+        store.accounts = [main];
+      }
+
+      saveStore(store);
+      console.log('[WarungKu] Bootstrap OK (categories/accounts aligned)');
+    }catch(err){
+      console.warn('[WarungKu] Bootstrap gagal:', err?.message || err);
+    }
+  }
+
+// ===== AUTO-SYNC to Supabase (if configured) =====
   function sbReady(){
     return window.WK && window.WK.supabase;
   }
@@ -410,6 +467,7 @@ localStorage.setItem('wk_sb_url', ($('#setSbUrl').value||'').trim());
 
     try{
       for(const table of Object.keys(grouped)){
+        if(table==='categories' || table==='accounts'){ continue; }
         const rows = grouped[table];
         // de-duplicate by id
         const byId = new Map();
@@ -431,16 +489,13 @@ localStorage.setItem('wk_sb_url', ($('#setSbUrl').value||'').trim());
   }
 
   async function syncNow(){
-    // enqueue base tables (idempotent)
-    enqueueSync('accounts', store.accounts || []);
-    enqueueSync('categories', store.categories || []);
-    // flush
+    await bootstrapSupabase();
     await flushOutbox();
   }
 
   function scheduleSync(){
     // try soon after load (supabaseClient may still be loading)
-    setTimeout(()=>flushOutbox(), 1200);
+    setTimeout(()=>{ bootstrapSupabase(); flushOutbox(); }, 1200);
     // periodic retry
     setInterval(()=>flushOutbox(), 15000);
   }
@@ -493,7 +548,7 @@ setSalesSession('pagi');
     scheduleSync();
     syncNow();
 
-    if('serviceWorker' in navigator && (location.protocol==='http:' || location.protocol==='https:')){
+    if('serviceWorker' in navigator){
       navigator.serviceWorker.register('./sw.js').catch(()=>{});
     }
   }
