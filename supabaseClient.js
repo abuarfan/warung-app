@@ -1,27 +1,24 @@
+// Supabase client bootstrap (permanen via supabase.config.js)
+window.WK = window.WK || {};
 (function(){
-  const sbUrl = localStorage.getItem('wk_sb_url') || '';
-  const sbAnon = localStorage.getItem('wk_sb_anon') || '';
-  window.WK = window.WK || {};
-  window.WK.supabase = null;
-
-  function loadScript(src){
-    return new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = src;
-      s.onload = resolve;
-      s.onerror = reject;
-      document.head.appendChild(s);
+  const url = window.SUPABASE_URL;
+  const anon = window.SUPABASE_ANON_KEY;
+  const valid = (x)=> typeof x==="string" && x.trim().length>10;
+  if(!valid(url) || !valid(anon)){
+    console.warn('[WarungKu] Supabase config belum diisi (supabase.config.js). App tetap jalan offline.');
+    return;
+  }
+  if(!window.supabase){
+    console.warn('[WarungKu] supabase-js belum termuat.');
+    return;
+  }
+  try{
+    window.WK.supabase = window.supabase.createClient(url, anon, {
+      auth: { persistSession: false },
+      global: { headers: { 'x-client-info': 'warungku-pwa' } }
     });
+    console.log('[WarungKu] Supabase siap');
+  }catch(e){
+    console.warn('[WarungKu] Gagal init Supabase:', e?.message || e);
   }
-
-  async function init(){
-    if(!sbUrl || !sbAnon) return;
-    try{
-      await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js');
-      window.WK.supabase = supabase.createClient(sbUrl, sbAnon);
-    }catch(err){
-      window.WK.supabase = null;
-    }
-  }
-  init();
 })();

@@ -1,3 +1,15 @@
+
+  function inputDateISO(){
+    const el = document.getElementById('inputDate');
+    if(el && el.value) return el.value;
+    // fallback: today in local time
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const da = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${da}`;
+  }
+
 (function(){
   const fmt = new Intl.NumberFormat('id-ID');
   const rupiah = (n) => 'Rp ' + fmt.format(Math.round((Number(n)||0)));
@@ -39,6 +51,31 @@
   let store = loadStore();
   const $ = (q)=>document.querySelector(q);
   const $$ = (q)=>Array.from(document.querySelectorAll(q));
+
+  function escapeHtml(s){
+    return String(s||'')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'",'&#39;');
+  }
+
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    if(!t) return;
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(showToast._tm);
+    showToast._tm = setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+
+
+  function isOnline(){
+    // navigator.onLine is not perfect, but good enough to avoid noisy fetch errors
+    return (typeof navigator !== 'undefined') ? navigator.onLine : true;
+  }
+
   const num = (v)=>Number(v||0);
 
   function ensureSeed(){
@@ -137,7 +174,7 @@
   }
 
   function loadSalesSessionValue(){
-    const d=todayISO();
+    const d=inputDateISO();
     const key = salesSession==='pagi' ? 'sales_pagi' : 'sales_sore';
     const tx = store.transactions
       .filter(t=>t.txn_date===d && t.type==='income' && t.ref_table===key)
@@ -149,7 +186,7 @@
     const totalStr=$('#salesTotal').value;
     if(totalStr===''){ alert('Isi total penjualan.'); return; }
     const total=num(totalStr);
-    const d=todayISO();
+    const d=inputDateISO();
     const key = salesSession==='pagi' ? 'sales_pagi' : 'sales_sore';
 
     // overwrite sesi
@@ -158,7 +195,7 @@
     saveStore(store);
     enqueueSync('transactions', store.transactions.slice(-1));
     flushOutbox();
-    alert('Penjualan tersimpan.');
+    showToast('Penjualan tersimpan.');
   }
 
   // ===== CATAT: EXPENSE (MERGED) =====
@@ -176,11 +213,19 @@
     const row=document.createElement('div');
     row.className='stok-line';
     row.innerHTML = `
-      <label class="field" style="min-width:0">
+      <label class="field col-name" style="min-width:0">
         <span>Jenis stok</span>
         <input class="li-name" type="text" placeholder="mis. gula, minyak, kopi" list="dlStokType" autocomplete="off">
       </label>
       <label class="field" style="min-width:0">
+        <span>Qty</span>
+        <input class="li-qty" type="number" min="0" step="1" placeholder="mis. 2">
+      </label>
+      <label class="field" style="min-width:0">
+        <span>Unit</span>
+        <input class="li-unit" type="text" placeholder="pcs/kg/dus">
+      </label>
+      <label class="field col-amt" style="min-width:0">
         <span>Nominal</span>
         <input class="li-amt" type="number" min="0" step="500" placeholder="mis. 25000">
       </label>
@@ -214,13 +259,15 @@
     const lines=[];
     for(const r of rows){
       const name=(r.querySelector('.li-name').value||'').trim();
+      const qty=num(r.querySelector('.li-qty')?.value);
+      const unit=(r.querySelector('.li-unit')?.value||'').trim();
       const amt=num(r.querySelector('.li-amt').value);
       if(!name){ alert('Isi nama jenis stok.'); return; }
       if(amt<=0){ alert('Nominal harus > 0.'); return; }
       lines.push({name, amt});
     }
     const total=lines.reduce((a,x)=>a+x.amt,0);
-    const d=todayISO();
+    const d=inputDateISO();
 
     const tx=addTransaction({txn_date:d,type:'expense',category_id:getCatId('expense','Belanja Stok'),amount:total,note:'',ref_table:'stok'});
     for(const x of lines){
@@ -235,8 +282,42 @@
     // reset
     $('#stokItems').innerHTML='';
     addStokRow();
+    // default tanggal input
+    const idt = $('#inputDate');
+    if(idt && !idt.value) idt.value = todayISO();
+
+    // edit modal bindings
+    const bClose = $('#btnCloseEdit');
+    if(bClose) bClose.addEventListener('click', closeEditTxn);
+    const bSave = $('#btnSaveEdit');
+    if(bSave) bSave.addEventListener('click', saveEditTxn);
+    const bDel = $('#btnDeleteTxn');
+    if(bDel) bDel.addEventListener('click', deleteEditTxn);
+    const bAdd = $('#btnAddEditStok');
+    if(bAdd) bAdd.addEventListener('click', ()=>{
+      const box = $('#editStokItems');
+      if(box) box.appendChild(makeEditStokRow({item_name:'', qty:null, unit:'', amount:0}));
+    });
+
+    // klik transaksi di laporan harian untuk edit
+    const dtl = $('#dailyTxnList');
+    if(dtl){
+      dtl.addEventListener('click', (e)=>{
+        const pill = e.target.closest('.pill');
+        if(pill && pill.dataset && pill.dataset.txnId){
+          openEditTxn(pill.dataset.txnId);
+        }
+      });
+    }
+
+    // close modal on backdrop
+    const me = $('#modalEditTxn');
+    if(me){
+      me.addEventListener('click', (e)=>{ if(e.target===me) closeEditTxn(); });
+    }
+
 $('#stokTotal').textContent=rupiah(0);
-    alert('Belanja stok tersimpan.');
+    showToast('Belanja stok tersimpan.');
   }
 
   function saveExpense(){
@@ -246,14 +327,14 @@ $('#stokTotal').textContent=rupiah(0);
     if(amtStr===''){ alert('Isi nominal.'); return; }
     const amount=num(amtStr);
     if(amount<=0){ alert('Nominal harus > 0.'); return; }
-    const d=todayISO();
+    const d=inputDateISO();
     addTransaction({txn_date:d,type:'expense',category_id:getCatId('expense','Pengeluaran'),amount,note:type,ref_table:'expense'});
     saveStore(store);
     enqueueSync('transactions', store.transactions.slice(-1));
     flushOutbox();
     $('#expType').value='';
     $('#expAmount').value='';
-    alert('Pengeluaran tersimpan.');
+    showToast('Pengeluaran tersimpan.');
   }
 
   // ===== REPORT: DAILY =====
@@ -290,6 +371,7 @@ $('#dBalance').textContent=rupiah(s.bal);
 
       const pill=document.createElement('div');
       pill.className='pill';
+      pill.dataset.txnId = t.id;
       pill.innerHTML = `
         <span class="dot" style="background:${t.type==='income'?'var(--green)':'var(--bad)'}"></span>
         <strong>${label}</strong>
@@ -297,6 +379,8 @@ $('#dBalance').textContent=rupiah(s.bal);
         <span style="margin-left:auto; font-weight:950; color:${t.type==='income'?'var(--green)':'var(--bad)'}">
           ${t.type==='income'?'+':'-'} ${rupiah(t.amount)}
         </span>`;
+      pill.style.cursor='pointer';
+      pill.addEventListener('click', ()=>openEditTxn(t.id));
       list.appendChild(pill);
 
       if(t.ref_table==='stok'){
@@ -304,10 +388,13 @@ $('#dBalance').textContent=rupiah(s.bal);
         if(lines.length){
           const sub=document.createElement('div');
           sub.className='pill';
+          sub.dataset.txnId = t.id;
           sub.style.background='#fafbfc';
           sub.style.borderStyle='dashed';
           sub.innerHTML = `<span class="muted tiny">Rincian:</span>
             <span class="muted tiny">${lines.map(x=>`${x.item_name} (${rupiah(x.amount)})`).join(' • ')}</span>`;
+          sub.style.cursor='pointer';
+          sub.addEventListener('click', ()=>openEditTxn(t.id));
           list.appendChild(sub);
         }
       }
@@ -348,6 +435,10 @@ const list=$('#monthTxnList');
       if(t.ref_table==='sales_sore') label='Penjualan (Sore)';
       const pill=document.createElement('div');
       pill.className='pill';
+      pill.dataset.txnId = t.id;
+      pill.style.cursor='pointer';
+      pill.addEventListener('click', ()=>openEditTxn(t.id));
+      pill.dataset.txnId = t.id;
       pill.innerHTML = `
         <span class="dot" style="background:${t.type==='income'?'var(--green)':'var(--bad)'}"></span>
         <strong>${t.txn_date}</strong>
@@ -360,28 +451,6 @@ const list=$('#monthTxnList');
   }
 
   // ===== SETTINGS =====
-  function openSettings(){
-$('#setSbUrl').value = localStorage.getItem('wk_sb_url') || '';
-    $('#setSbAnon').value = localStorage.getItem('wk_sb_anon') || '';
-    $('#modalSettings').classList.remove('hidden');
-  }
-  function saveSettings(){
-localStorage.setItem('wk_sb_url', ($('#setSbUrl').value||'').trim());
-    localStorage.setItem('wk_sb_anon', ($('#setSbAnon').value||'').trim());
-    saveStore(store);
-    $('#modalSettings').classList.add('hidden');
-    alert('Pengaturan tersimpan.');
-    const active=$$('.nav-item').find(b=>b.classList.contains('active'));
-    if(active && active.dataset.view==='harian') renderDaily();
-    if(active?.dataset.view==='bulanan') renderMonthly();
-  }
-  function resetLocal(){
-    if(!confirm('Reset semua data lokal?')) return;
-    localStorage.removeItem(LS_KEY);
-    store = loadStore();
-    ensureSeed();
-    location.reload();
-  }
 
   
   
@@ -437,7 +506,7 @@ localStorage.setItem('wk_sb_url', ($('#setSbUrl').value||'').trim());
       saveStore(store);
       console.log('[WarungKu] Bootstrap OK (categories/accounts aligned)');
     }catch(err){
-      console.warn('[WarungKu] Bootstrap gagal:', err?.message || err);
+      if(!isOnline()) return; console.warn('[WarungKu] Bootstrap gagal:', err?.message || err);
     }
   }
 
@@ -449,35 +518,113 @@ localStorage.setItem('wk_sb_url', ($('#setSbUrl').value||'').trim());
   function enqueueSync(table, rows){
     if(!rows || rows.length===0) return;
     store.outbox = store.outbox || [];
-    store.outbox.push({table, rows});
+    store.outbox.push({table, action:'upsert', rows});
     saveStore(store);
   }
+
+  function enqueueDelete(table, ids){
+    if(!ids || ids.length===0) return;
+    store.outbox = store.outbox || [];
+    store.outbox.push({table, action:'delete', ids});
+    saveStore(store);
+  }
+
+
+  async function pullRemoteData(days=365){
+    const sb = sbReady();
+    if(!sb) return;
+
+    const since = new Date();
+    since.setDate(since.getDate()-days);
+    const sinceISO = since.toISOString().slice(0,10);
+
+    const { data: rTx, error: txErr } = await sb
+      .from('transactions')
+      .select('id,txn_date,type,account_id,category_id,amount,note,ref_table,created_at')
+      .gte('txn_date', sinceISO)
+      .order('txn_date', { ascending: true })
+      .limit(5000);
+    if(txErr) throw txErr;
+
+    // merge by id
+    const txById = new Map((store.transactions||[]).map(t=>[t.id,t]));
+    (rTx||[]).forEach(t=>txById.set(t.id, t));
+    store.transactions = Array.from(txById.values());
+
+    const ids = (rTx||[]).map(t=>t.id);
+    if(ids.length){
+      const { data: rLines, error: lErr } = await sb
+        .from('stok_lines')
+        .select('id,txn_id,item_name,qty,unit,amount,created_at')
+        .in('txn_id', ids)
+        .limit(20000);
+      if(lErr) throw lErr;
+
+      const lineById = new Map((store.stok_lines||[]).map(l=>[l.id,l]));
+      (rLines||[]).forEach(l=>lineById.set(l.id, l));
+      store.stok_lines = Array.from(lineById.values());
+    }
+
+    saveStore(store);
+    console.log('[WarungKu] Pull remote OK');
+  }
+
 
   async function flushOutbox(){
     const sb = sbReady();
     if(!sb) return false;
     if(!store.outbox || store.outbox.length===0) return true;
 
-    // merge ops by table to reduce requests
-    const grouped = {};
-    store.outbox.forEach(op=>{
-      if(!grouped[op.table]) grouped[op.table] = [];
-      grouped[op.table].push(...op.rows);
+    // normalize legacy ops (no action)
+    store.outbox = store.outbox.map(op=>{
+      if(!op.action){
+        return { table: op.table, action: 'upsert', rows: op.rows || [] };
+      }
+      return op;
     });
 
+    const upserts = {};
+    const deletes = {};
+    for(const op of store.outbox){
+      if(op.action==='delete'){
+        if(!deletes[op.table]) deletes[op.table] = new Set();
+        (op.ids||[]).forEach(id=>deletes[op.table].add(id));
+      }else{
+        if(!upserts[op.table]) upserts[op.table] = [];
+        (op.rows||[]).forEach(r=>upserts[op.table].push(r));
+      }
+    }
+
     try{
-      for(const table of Object.keys(grouped)){
-        if(table==='categories' || table==='accounts'){ continue; }
-        const rows = grouped[table];
-        // de-duplicate by id
+      // deletes first (FK: stok_lines -> transactions)
+      const delOrder = ['stok_lines','transactions'];
+      for(const table of delOrder){
+        if(!deletes[table]) continue;
+        const ids = Array.from(deletes[table]);
+        if(ids.length===0) continue;
+        const { error } = await sb.from(table).delete().in('id', ids);
+        if(error) throw error;
+      }
+      for(const table of Object.keys(deletes)){
+        if(delOrder.includes(table)) continue;
+        const ids = Array.from(deletes[table]);
+        if(ids.length===0) continue;
+        const { error } = await sb.from(table).delete().in('id', ids);
+        if(error) throw error;
+      }
+
+      for(const table of Object.keys(upserts)){
+        if(table==='categories' || table==='accounts') continue;
+        const rows = upserts[table];
         const byId = new Map();
         rows.forEach(r=>{ if(r && r.id) byId.set(r.id, r); });
         const uniq = Array.from(byId.values());
+        if(uniq.length===0) continue;
         const onConflict = (table==='categories') ? 'type,name' : 'id';
         const { error } = await sb.from(table).upsert(uniq, { onConflict });
         if(error) throw error;
       }
-      // clear outbox if success
+
       store.outbox = [];
       saveStore(store);
       console.log('[WarungKu] Sync OK');
@@ -489,13 +636,43 @@ localStorage.setItem('wk_sb_url', ($('#setSbUrl').value||'').trim());
   }
 
   async function syncNow(){
-    await bootstrapSupabase();
-    await flushOutbox();
+    if(!isOnline()){
+      // offline: jangan spam error, tunggu online
+      return;
+    }
+
+    const sb = sbReady();
+    if(!sb) return;
+    const url = (window.SUPABASE_URL||'');
+    if(/YOUR_PROJECT|your_project/i.test(url)){
+      // config placeholder, jangan sync
+      return;
+    }
+    try{
+      await bootstrapSupabase();
+    }catch(e){
+      if(!isOnline()) return; console.warn('[WarungKu] Bootstrap gagal:', e?.message || e);
+    }
+    try{
+      await pullRemoteData(365);
+    }catch(e){
+      console.warn('[WarungKu] Pull gagal:', e?.message || e);
+    }
+    try{
+      await flushOutbox();
+    }catch(e){
+      console.warn('[WarungKu] Flush gagal:', e?.message || e);
+    }
   }
 
   function scheduleSync(){
+    if(!isOnline()){
+      // offline: coba lagi saat online
+      return;
+    }
+
     // try soon after load (supabaseClient may still be loading)
-    setTimeout(()=>{ bootstrapSupabase(); flushOutbox(); }, 1200);
+    setTimeout(()=>{ const u=(window.SUPABASE_URL||''); if(!/YOUR_PROJECT|your_project/i.test(u)){ bootstrapSupabase(); flushOutbox(); } }, 1200);
     // periodic retry
     setInterval(()=>flushOutbox(), 15000);
   }
@@ -522,8 +699,170 @@ localStorage.setItem('wk_sb_url', ($('#setSbUrl').value||'').trim());
     }
   }
 
-  function init(){
-    $$('.nav-item').forEach(b=>b.addEventListener('click', ()=>showView(b.dataset.view)));
+  
+  let _editTxnId = null;
+
+  function makeEditStokRow(line){
+    const row=document.createElement('div');
+    row.className='stok-line';
+    row.innerHTML = `
+      <label class="field col-name" style="min-width:0">
+        <span>Jenis stok</span>
+        <input class="li-name" type="text" list="dlStokType" autocomplete="off" value="${escapeHtml(line.item_name||'')}">
+      </label>
+      <label class="field" style="min-width:0">
+        <span>Qty</span>
+        <input class="li-qty" type="number" min="0" step="1" value="${line.qty ?? ''}">
+      </label>
+      <label class="field" style="min-width:0">
+        <span>Unit</span>
+        <input class="li-unit" type="text" value="${escapeHtml(line.unit||'')}">
+      </label>
+      <label class="field col-amt" style="min-width:0">
+        <span>Nominal</span>
+        <input class="li-amt" type="number" min="0" step="500" value="${line.amount ?? 0}">
+      </label>
+      <button class="remove" title="Hapus">🗑</button>
+    `;
+    row.querySelector('.remove').addEventListener('click', ()=>row.remove());
+    return row;
+  }
+
+  function openEditTxn(txnId){
+    const tx = (store.transactions||[]).find(x=>x.id===txnId);
+    if(!tx) return;
+    _editTxnId = txnId;
+
+    $('#editDate').value = tx.txn_date;
+    $('#editAmount').value = tx.amount;
+
+    const cat = (store.categories||[]).find(c=>c.id===tx.category_id);
+    const isPengeluaran = (tx.type==='expense' && cat && cat.name==='Pengeluaran');
+    const isStok = (tx.type==='expense' && cat && cat.name==='Belanja Stok');
+
+    $('#editTypeWrap').classList.toggle('hidden', !isPengeluaran);
+    $('#editStokWrap').classList.toggle('hidden', !isStok);
+
+    if(isPengeluaran){
+      $('#editType').value = tx.note || '';
+    }
+
+    if(isStok){
+      const box = $('#editStokItems');
+      box.innerHTML = '';
+      const lines = (store.stok_lines||[]).filter(l=>l.txn_id===tx.id);
+      (lines.length?lines:[{item_name:'',qty:null,unit:'',amount:0}]).forEach(line=>{
+        box.appendChild(makeEditStokRow(line));
+      });
+    }
+
+    $('#modalEditTxn').classList.remove('hidden');
+  }
+
+  function closeEditTxn(){
+    $('#modalEditTxn').classList.add('hidden');
+    _editTxnId = null;
+  }
+
+  async function saveEditTxn(){
+    const id = _editTxnId;
+    if(!id) return;
+    const tx = (store.transactions||[]).find(x=>x.id===id);
+    if(!tx) return;
+
+    const newDate = $('#editDate').value || tx.txn_date;
+    const newAmt = num($('#editAmount').value);
+    if(newAmt<=0){ alert('Nominal harus > 0.'); return; }
+
+    const cat = (store.categories||[]).find(c=>c.id===tx.category_id);
+    const isPengeluaran = (tx.type==='expense' && cat && cat.name==='Pengeluaran');
+    const isStok = (tx.type==='expense' && cat && cat.name==='Belanja Stok');
+
+    tx.txn_date = newDate;
+    tx.amount = newAmt;
+
+    if(isPengeluaran){
+      tx.note = ($('#editType').value||'').trim();
+    }
+
+
+  async function deleteEditTxn(){
+    const id = _editTxnId;
+    if(!id) return;
+    if(!confirm('Hapus transaksi ini?')) return;
+
+    // remove local transaction
+    store.transactions = (store.transactions||[]).filter(t=>t.id!==id);
+
+    // remove local stok lines
+    const lines = (store.stok_lines||[]).filter(l=>l.txn_id===id);
+    store.stok_lines = (store.stok_lines||[]).filter(l=>l.txn_id!==id);
+
+    saveStore(store);
+
+    enqueueDelete('stok_lines', lines.map(l=>l.id));
+    enqueueDelete('transactions', [id]);
+
+    await flushOutbox();
+
+    showToast('Transaksi dihapus.');
+    renderDaily();
+    renderMonthly();
+    closeEditTxn();
+  }
+
+    if(isStok){
+      store.stok_lines = (store.stok_lines||[]).filter(l=>l.txn_id!==tx.id);
+      const rows = Array.from($('#editStokItems').querySelectorAll('.stok-line'));
+      rows.forEach(r=>{
+        const name=(r.querySelector('.li-name').value||'').trim();
+        const qty=num(r.querySelector('.li-qty')?.value);
+        const unit=(r.querySelector('.li-unit')?.value||'').trim();
+        const amt=num(r.querySelector('.li-amt').value);
+        if(name && amt>0){
+          store.stok_lines.push({id:uid(), txn_id: tx.id, item_name:name, qty:(qty||null), unit:(unit||null), amount:amt, created_at: new Date().toISOString()});
+        }
+      });
+    }
+
+    saveStore(store);
+    enqueueSync('transactions', [tx]);
+    if(isStok){
+      enqueueSync('stok_lines', (store.stok_lines||[]).filter(l=>l.txn_id===tx.id));
+    }
+    await flushOutbox();
+
+    showToast('Perubahan disimpan.');
+    renderDaily();
+    renderMonthly();
+    closeEditTxn();
+  }
+
+function init(){
+    // when connection returns, pull + flush
+    window.addEventListener('online', ()=>{ try{ syncNow(); }catch(e){} });
+    window.addEventListener('offline', ()=>{ try{ showToast('Mode offline: data disimpan lokal'); }catch(e){} });
+
+    
+    // default dates
+    const _today = (function(){
+      const d=new Date(); const y=d.getFullYear();
+      const m=String(d.getMonth()+1).padStart(2,'0');
+      const da=String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${da}`;
+    })();
+    const _thisMonth = _today.slice(0,7);
+
+    const idt = document.getElementById('inputDate');
+    if(idt && !idt.value) idt.value = _today;
+
+    const dd = document.getElementById('dailyDate');
+    if(dd && !dd.value) dd.value = _today;
+
+    const mp = document.getElementById('monthPick');
+    if(mp && !mp.value) mp.value = _thisMonth;
+
+$$('.nav-item').forEach(b=>b.addEventListener('click', ()=>showView(b.dataset.view)));
 
     $('#btnSessPagi').addEventListener('click', ()=>setSalesSession('pagi'));
     $('#btnSessSore').addEventListener('click', ()=>setSalesSession('sore'));
@@ -538,10 +877,6 @@ localStorage.setItem('wk_sb_url', ($('#setSbUrl').value||'').trim());
     addStokRow();
 
     $('#dailyDate').addEventListener('change', renderDaily);
-$('#btnSettings').addEventListener('click', openSettings);
-    $('#btnCloseSettings').addEventListener('click', ()=>$('#modalSettings').classList.add('hidden'));
-    $('#btnSaveSettings').addEventListener('click', saveSettings);
-    $('#btnResetLocal').addEventListener('click', resetLocal);
 setSalesSession('pagi');
     setExpMode('stok');
 
