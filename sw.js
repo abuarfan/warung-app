@@ -1,5 +1,5 @@
-const CACHE_NAME = 'warungku-v3-pwa-v1';
-const ASSETS = ['./','./index.html','./style.css','./app.js','./supabaseClient.js','./manifest.json','./icon-192.png','./icon-512.png'];
+const CACHE_NAME = 'warungku-v3-theme-krempasar-v1';
+const ASSETS = ['./','./index.html','./style.css','./app.js','./supabaseClient.js','./manifest.json','./icon-192.png','./icon-512.png','./assets/bg-pattern.svg','./assets/hero.svg'];
 
 self.addEventListener('install', (e)=>{
   e.waitUntil(
