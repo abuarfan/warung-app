@@ -23,14 +23,12 @@
 
     <!-- CATAT -->
     <section class="view" id="view-catat">
-<div class="card soft" style="margin-top:10px">
-        <div class="row between">
-          <div class="muted tiny">Tanggal input</div>
+      <div class="picker-bar" style="margin-top:10px">
+        <button class="picker-nav" id="btnInputPrev" aria-label="Hari sebelumnya">‹</button>
+        <div class="picker-mid">
+          <input class="picker-input" type="date" id="inputDate">
         </div>
-        <label class="field" style="margin-top:8px">
-          <span>Pilih tanggal</span>
-          <input type="date" id="inputDate">
-        </label>
+        <button class="picker-nav" id="btnInputNext" aria-label="Hari berikutnya">›</button>
       </div>
 
 
@@ -108,74 +106,85 @@
 
     <!-- LAPORAN HARIAN -->
     <section class="view hidden" id="view-harian">
-      <div class="card">
-        <div class="row between">
-          <div>
-            <div class="card-title">Laporan Harian</div>
-            <div class="muted tiny">Pilih tanggal untuk lihat ringkasan.</div>
-          </div>
-          <label class="field" style="min-width:180px">
-            <span>Tanggal</span>
-            <input type="date" id="dailyDate">
-          </label>
-        </div>
+  <div class="picker-bar picker-top">
+    <button class="picker-nav" id="btnDailyPrev" aria-label="Hari sebelumnya">‹</button>
+    <div class="picker-mid">
+      <input class="picker-input" type="date" id="dailyDate">
+    </div>
+    <button class="picker-nav" id="btnDailyNext" aria-label="Hari berikutnya">›</button>
+  </div>
 
-        <div class="divider"></div>
-
-        <div class="kpi-grid">
-          <div class="kpi">
-            <div class="kpi-label">Penjualan (Pagi + Sore)</div>
-            <div class="kpi-value" id="dSales">Rp 0</div>
-            <div class="muted tiny" id="dSalesSplit">Pagi Rp 0 • Sore Rp 0</div>
-          </div>
-          <div class="kpi"><div class="kpi-label">Belanja stok</div><div class="kpi-value" id="dStok">Rp 0</div></div>
-          <div class="kpi"><div class="kpi-label">Pengeluaran</div><div class="kpi-value" id="dExp">Rp 0</div></div>
-          <div class="kpi"><div class="kpi-label">Sisa bersih</div><div class="kpi-value good" id="dNet">Rp 0</div></div>
-        </div>
-
-        <div class="divider"></div>
-        <div class="kpi-grid">
-<div class="kpi">
-            <div class="kpi-label">Saldo berjalan</div>
-            <div class="kpi-value" id="dBalance">Rp 0</div>
-            <div class="muted tiny">Akumulasi transaksi s/d tanggal ini.</div>
-          </div>
-        </div>
+  <div class="card">
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Penjualan (Pagi + Sore)</div>
+        <div class="kpi-value" id="dSales">Rp 0</div>
+        <div class="muted tiny" id="dSalesSplit">Pagi Rp 0 • Sore Rp 0</div>
       </div>
-
-      <div class="card">
-        <div class="card-title">Transaksi (tanggal ini)</div>
-        <div id="dailyTxnList" class="list muted">—</div>
+      <div class="kpi">
+        <div class="kpi-label">Belanja Stok</div>
+        <div class="kpi-value" id="dStok">Rp 0</div>
       </div>
-    </section>
+      <div class="kpi">
+        <div class="kpi-label">Pengeluaran</div>
+        <div class="kpi-value" id="dExp">Rp 0</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Laba/Rugi (Hari ini)</div>
+        <div class="kpi-value" id="dNet">Rp 0</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Saldo Kas</div>
+        <div class="kpi-value" id="dBalance">Rp 0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Transaksi (tanggal ini)</div>
+    <div id="dailyTxnList" class="list muted">—</div>
+  </div>
+</section>
 
     <!-- LAPORAN BULANAN -->
     <section class="view hidden" id="view-bulanan">
-      <div class="row between">
-        <h2 class="h2">Laporan Bulanan</h2>
-</div>
+  <div class="picker-bar picker-top">
+    <button class="picker-nav" id="btnMonthPrev" aria-label="Bulan sebelumnya">‹</button>
+    <div class="picker-mid">
+      <input class="picker-input" type="month" id="reportMonth">
+    </div>
+    <button class="picker-nav" id="btnMonthNext" aria-label="Bulan berikutnya">›</button>
+  </div>
 
-      <div class="card">
-        <div class="row">
-          <label class="field">
-            <span>Bulan</span>
-            <input type="month" id="reportMonth">
-          </label>
-</div>
-
-        <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-label">Penjualan</div><div class="kpi-value" id="mSales">Rp 0</div></div>
-          <div class="kpi"><div class="kpi-label">Belanja stok</div><div class="kpi-value" id="mStok">Rp 0</div></div>
-          <div class="kpi"><div class="kpi-label">Pengeluaran</div><div class="kpi-value" id="mExp">Rp 0</div></div>
-          <div class="kpi"><div class="kpi-label">Sisa bersih</div><div class="kpi-value good" id="mNet">Rp 0</div></div>
-        </div>
-</div>
-
-      <div class="card">
-        <div class="card-title">Transaksi (bulan ini)</div>
-        <div id="monthTxnList" class="list muted">—</div>
+  <div class="card">
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">Penjualan (Bulan ini)</div>
+        <div class="kpi-value" id="mSales">Rp 0</div>
       </div>
-    </section>
+      <div class="kpi">
+        <div class="kpi-label">Belanja Stok</div>
+        <div class="kpi-value" id="mStok">Rp 0</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Pengeluaran</div>
+        <div class="kpi-value" id="mExp">Rp 0</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Laba/Rugi (Bulan ini)</div>
+        <div class="kpi-value" id="mNet">Rp 0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Transaksi (bulan ini)</div>
+    <div id="monthTxnList" class="list muted">—</div>
+  </div>
+</section>
 
   </main>
 
@@ -186,24 +195,20 @@
   </nav>
 
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./supabase.config.js"></script>
-  <script src="./supabaseClient.js"></script>
-  <script src="./app.js"></script>
-
+  <!-- Toast + Modal diletakkan sebelum script agar event listener bisa dipasang saat init -->
   <div class="toast" id="toast"></div>
 
   <div class="modal hidden" id="modalEditTxn">
     <div class="modal-content">
       <div class="modal-header">
-        <div class="modal-title">Edit Transaksi</div>
+        <div class="modal-head"><div class="modal-title">Edit Transaksi</div><button class="modal-close" id="btnCloseEdit" aria-label="Tutup">×</button></div>
         <button class="modal-close" id="btnCloseEdit">✕</button>
       </div>
 
       <div class="modal-body">
         <div class="row" style="gap:10px; flex-wrap:wrap">
           <label class="field" style="min-width:0; flex:1">
-            <span>Tanggal</span>
+            <span></span>
             <input type="date" id="editDate">
           </label>
           <label class="field" style="min-width:0; flex:1">
@@ -233,6 +238,11 @@
       </div>
     </div>
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./supabase.config.js"></script>
+  <script src="./supabaseClient.js"></script>
+  <script src="./app.js"></script>
 
 </body>
 </html>

@@ -1,4 +1,21 @@
 
+  function getStoreSafe(){
+    // Avoid ReferenceError when 'store' hasn't been declared yet
+    try{
+      if(typeof store !== 'undefined' && store) return store;
+    }catch(e){}
+    if(typeof window !== 'undefined' && window.store) return window.store;
+    return null;
+  }
+
+  function defaultAccountId(){
+    const s = getStoreSafe();
+    const a = (s && s.accounts && s.accounts[0]) ? s.accounts[0].id : null;
+    return a || (s && s.accounts_default_id) || null;
+  }
+
+
+
   function inputDateISO(){
     const el = document.getElementById('inputDate');
     if(el && el.value) return el.value;
@@ -49,6 +66,8 @@
   }
 
   let store = loadStore();
+  try{ window.store = store; }catch(e){}
+  try{ window.store = store; }catch(e){}
   const $ = (q)=>document.querySelector(q);
   const $$ = (q)=>Array.from(document.querySelectorAll(q));
 
@@ -101,7 +120,7 @@
       id: uid(),
       txn_date,
       type,
-      account_id: store.accounts[0].id,
+      account_id: defaultAccountId() || (store.accounts && store.accounts[0] ? store.accounts[0].id : null),
       category_id,
       amount: num(amount),
       note: note||'',
@@ -237,10 +256,16 @@
   }
 
   function recalcStokTotal(){
-    const rows=Array.from($('#stokItems').querySelectorAll('.stok-line'));
-    const total=rows.reduce((a,r)=>a+num(r.querySelector('.li-amt').value),0);
+    const rows = Array.from($('#stokItems').querySelectorAll('.stok-line'));
+    let total = 0;
+    for(const r of rows){
+      const qty = num(r.querySelector('.li-qty')?.value);
+      const amt = num(r.querySelector('.li-amt')?.value);
+      if(amt>0){
+        total += (qty && qty>0) ? (qty*amt) : amt;
+      }
+    }
     $('#stokTotal').textContent = rupiah(total);
-    return total;
   }
 
   function addStokRow(){
@@ -264,14 +289,14 @@
       const amt=num(r.querySelector('.li-amt').value);
       if(!name){ alert('Isi nama jenis stok.'); return; }
       if(amt<=0){ alert('Nominal harus > 0.'); return; }
-      lines.push({name, amt});
+      lines.push({name, qty, unit, amt});
     }
-    const total=lines.reduce((a,x)=>a+x.amt,0);
+    const total=lines.reduce((a,x)=>a + ((x.qty&&x.qty>0)?(x.qty*x.amt):x.amt),0);
     const d=inputDateISO();
 
     const tx=addTransaction({txn_date:d,type:'expense',category_id:getCatId('expense','Belanja Stok'),amount:total,note:'',ref_table:'stok'});
     for(const x of lines){
-      store.stok_lines.push({id:uid(), txn_id:tx.id, item_name:x.name, amount:x.amt, created_at:new Date().toISOString()});
+      store.stok_lines.push({id:uid(), txn_id:tx.id, item_name:x.name, qty:(x.qty||null), unit:(x.unit||null), amount:((x.qty&&x.qty>0)?(x.qty*x.amt):x.amt), created_at:new Date().toISOString()});
     }
     saveStore(store);
     // queue sync (transaction + stok lines)
@@ -454,7 +479,36 @@ const list=$('#monthTxnList');
 
   
   
-  async function bootstrapSupabase(){
+  
+  function normalizeRefs(remoteAccounts, remoteCategories){
+    try{
+      const accIds = new Set((remoteAccounts||[]).map(a=>a.id));
+      const catIds = new Set((remoteCategories||[]).map(c=>c.id));
+      const defaultAcc = (remoteAccounts && remoteAccounts[0]) ? remoteAccounts[0].id : null;
+
+      // Fix store transactions
+      (store.transactions||[]).forEach(t=>{
+        if(defaultAcc && !accIds.has(t.account_id)) t.account_id = defaultAcc;
+        if(remoteCategories && remoteCategories.length && !catIds.has(t.category_id)){
+          // best-effort: map by type+known name in note/ref_table (rare). Otherwise keep as-is.
+          // (we avoid guessing wrong; categories should be aligned in bootstrap anyway)
+        }
+      });
+
+      // Fix outbox queued transactions
+      (store.outbox||[]).forEach(job=>{
+        if(job.table==='transactions' && Array.isArray(job.rows)){
+          job.rows.forEach(t=>{
+            if(defaultAcc && !accIds.has(t.account_id)) t.account_id = defaultAcc;
+          });
+        }
+      });
+
+      saveStore(store);
+    }catch(e){}
+  }
+
+async function bootstrapSupabase(){
     const sb = sbReady();
     if(!sb) return;
 
@@ -504,6 +558,7 @@ const list=$('#monthTxnList');
       }
 
       saveStore(store);
+      normalizeRefs(remoteAcc, remoteCats);
       console.log('[WarungKu] Bootstrap OK (categories/accounts aligned)');
     }catch(err){
       if(!isOnline()) return; console.warn('[WarungKu] Bootstrap gagal:', err?.message || err);
@@ -786,30 +841,8 @@ const list=$('#monthTxnList');
     }
 
 
-  async function deleteEditTxn(){
-    const id = _editTxnId;
-    if(!id) return;
-    if(!confirm('Hapus transaksi ini?')) return;
+  
 
-    // remove local transaction
-    store.transactions = (store.transactions||[]).filter(t=>t.id!==id);
-
-    // remove local stok lines
-    const lines = (store.stok_lines||[]).filter(l=>l.txn_id===id);
-    store.stok_lines = (store.stok_lines||[]).filter(l=>l.txn_id!==id);
-
-    saveStore(store);
-
-    enqueueDelete('stok_lines', lines.map(l=>l.id));
-    enqueueDelete('transactions', [id]);
-
-    await flushOutbox();
-
-    showToast('Transaksi dihapus.');
-    renderDaily();
-    renderMonthly();
-    closeEditTxn();
-  }
 
     if(isStok){
       store.stok_lines = (store.stok_lines||[]).filter(l=>l.txn_id!==tx.id);
@@ -838,7 +871,48 @@ const list=$('#monthTxnList');
     closeEditTxn();
   }
 
+async function deleteEditTxn(){
+    const id = _editTxnId;
+    if(!id) return;
+    if(!confirm('Hapus transaksi ini?')) return;
+
+    // remove local transaction
+    store.transactions = (store.transactions||[]).filter(t=>t.id!==id);
+
+    // remove local stok lines
+    const lines = (store.stok_lines||[]).filter(l=>l.txn_id===id);
+    store.stok_lines = (store.stok_lines||[]).filter(l=>l.txn_id!==id);
+
+    saveStore(store);
+
+    enqueueDelete('stok_lines', lines.map(l=>l.id));
+    enqueueDelete('transactions', [id]);
+
+    try{ await flushOutbox(); }catch(e){ /*offline*/ }
+
+    showToast('Transaksi dihapus.');
+    renderDaily();
+    renderMonthly();
+    closeEditTxn();
+  }
+
+
 function init(){
+
+    // Delegated handlers (more robust than direct bindings)
+    document.addEventListener('click', (e)=>{
+      const t = e.target;
+      if(t && t.closest('#btnCloseEdit')){
+        e.preventDefault(); closeEditTxn(); return;
+      }
+      if(t && t.closest('#btnSaveEdit')){
+        e.preventDefault(); saveEditTxn(); return;
+      }
+      if(t && t.closest('#btnDeleteTxn')){
+        e.preventDefault(); deleteEditTxn(); return;
+      }
+    });
+
     // when connection returns, pull + flush
     window.addEventListener('online', ()=>{ try{ syncNow(); }catch(e){} });
     window.addEventListener('offline', ()=>{ try{ showToast('Mode offline: data disimpan lokal'); }catch(e){} });
@@ -859,8 +933,39 @@ function init(){
     const dd = document.getElementById('dailyDate');
     if(dd && !dd.value) dd.value = _today;
 
-    const mp = document.getElementById('monthPick');
+    const mp = document.getElementById('reportMonth');
     if(mp && !mp.value) mp.value = _thisMonth;
+
+    // prev/next navigation for date/month pickers
+    const shiftDay = (id, delta)=>{
+      const el = document.getElementById(id);
+      if(!el) return;
+      const base = el.value ? new Date(el.value+'T00:00:00') : new Date();
+      base.setDate(base.getDate()+delta);
+      const y=base.getFullYear();
+      const m=String(base.getMonth()+1).padStart(2,'0');
+      const d=String(base.getDate()).padStart(2,'0');
+      el.value = `${y}-${m}-${d}`;
+      el.dispatchEvent(new Event('change'));
+    };
+    const shiftMonth = (id, delta)=>{
+      const el = document.getElementById(id);
+      if(!el) return;
+      const v = el.value || _thisMonth;
+      const [yy,mm] = v.split('-').map(x=>parseInt(x,10));
+      const dt = new Date(yy, (mm-1)+delta, 1);
+      const y=dt.getFullYear();
+      const m=String(dt.getMonth()+1).padStart(2,'0');
+      el.value = `${y}-${m}`;
+      el.dispatchEvent(new Event('change'));
+    };
+
+    document.getElementById('btnInputPrev')?.addEventListener('click', ()=>shiftDay('inputDate', -1));
+    document.getElementById('btnInputNext')?.addEventListener('click', ()=>shiftDay('inputDate',  1));
+    document.getElementById('btnDailyPrev')?.addEventListener('click', ()=>shiftDay('dailyDate', -1));
+    document.getElementById('btnDailyNext')?.addEventListener('click', ()=>shiftDay('dailyDate',  1));
+    document.getElementById('btnMonthPrev')?.addEventListener('click', ()=>shiftMonth('reportMonth', -1));
+    document.getElementById('btnMonthNext')?.addEventListener('click', ()=>shiftMonth('reportMonth',  1));
 
 $$('.nav-item').forEach(b=>b.addEventListener('click', ()=>showView(b.dataset.view)));
 
@@ -873,6 +978,12 @@ $$('.nav-item').forEach(b=>b.addEventListener('click', ()=>showView(b.dataset.vi
     $('#btnAddStokItem').addEventListener('click', addStokRow);
     $('#btnSaveStok').addEventListener('click', saveStok);
     $('#btnSaveExpense').addEventListener('click', saveExpense);
+
+    // picker change listeners
+    document.getElementById('inputDate')?.addEventListener('change', ()=>{
+      try{ loadSalesSessionValue(); }catch(e){}
+    });
+    document.getElementById('reportMonth')?.addEventListener('change', renderMonthly);
 
     addStokRow();
 

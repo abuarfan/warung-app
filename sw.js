@@ -1,4 +1,4 @@
-const CACHE_NAME = 'warungku-v3-krem-fix-v10';
+const CACHE_NAME = 'warungku-v3-krem-fix-v19';
 const ASSETS = ['./','./index.html','./style.css','./app.js','./supabaseClient.js','./supabase.config.js','./manifest.json','./icon-192.png','./icon-512.png','./assets/bg-pattern.svg'];
 
 self.addEventListener('install', (e)=>{

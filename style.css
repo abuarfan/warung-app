@@ -20,6 +20,17 @@ body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Aria
 .container{padding:14px 14px 90px;max-width:820px;margin:0 auto}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:var(--shadow);margin-bottom:12px}
 .card.soft{background:#fafbfc}
+
+/* Date/Month picker as elegant card */
+.picker-card{background:rgba(255,255,255,0.78);border:1px solid rgba(221,225,230,0.95);border-radius:16px;padding:12px;box-shadow:0 10px 22px rgba(20,24,28,0.06)}
+.picker-card .field input{background:rgba(255,255,255,0.92)}
+
+/* Picker bar (tanpa box) */
+.picker-bar{display:flex;align-items:center;gap:10px}
+.picker-mid{flex:1;min-width:0}
+.picker-input{width:100%;padding:10px 12px;border-radius:14px;border:1px solid rgba(221,225,230,0.95);background:rgba(255,255,255,0.92)}
+.picker-nav{width:44px;height:44px;border-radius:14px;border:1px solid rgba(221,225,230,0.95);background:rgba(255,255,255,0.92);display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1}
+.picker-nav:active{transform:translateY(1px)}
 .card-title{font-size:12px;color:var(--muted);margin-bottom:6px}
 .h2{margin:0;font-size:18px}
 .muted{color:var(--muted)}
@@ -179,3 +190,19 @@ body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Aria
 
 .btn.danger{background:var(--bad); color:#fff; border:1px solid rgba(0,0,0,0.06);}
 .btn.danger:active{transform:translateY(1px);}
+
+.picker-top{margin-top:12px}
+.picker-bar{display:flex;align-items:center;gap:10px}
+.picker-mid{flex:1;display:flex;justify-content:center}
+.picker-input{width:100%;max-width:240px}
+@media (max-width:420px){
+  .picker-input{max-width:200px}
+}
+
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.modal-title{font-weight:800;font-size:18px;letter-spacing:.2px}
+.modal-close{width:36px;height:36px;border-radius:10px;border:1px solid rgba(0,0,0,.08);background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer}
+.modal-close:active{transform:scale(.98)}
+.modal-actions{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+.modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:420px){.modal .row2{grid-template-columns:1fr}}
