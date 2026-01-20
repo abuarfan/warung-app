@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Warung App Pro</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    
+    <style>
+        :root {
+            --primary: #2563eb; --bg: #f8fafc; --card-bg: #ffffff;
+            --text: #334155; --success: #10b981; --danger: #ef4444; --subtle: #94a3b8;
+            --font-stack: 'Inter', sans-serif;
+        }
+
+        body, input, select, button, table { font-family: var(--font-stack); font-size: 14px; color: var(--text); }
+        body { background-color: var(--bg); margin: 0; padding-bottom: 90px; padding-top: 10px; -webkit-tap-highlight-color: transparent; }
+
+        /* Navbar */
+        .navbar {
+            background: rgba(255,255,255,0.98); border-top: 1px solid #e2e8f0;
+            position: fixed; bottom: 0; left: 0; right: 0;
+            display: flex; justify-content: space-around; padding: 10px 0; z-index: 1000;
+        }
+        .nav-btn { background: none; border: none; color: var(--subtle); font-size: 0.7rem; font-weight: 600; display: flex; flex-direction: column; align-items: center; width: 100%; }
+        .nav-btn .material-icons-round { font-size: 24px; margin-bottom: 2px; }
+        .nav-btn.active { color: var(--primary); }
+
+        /* Layout */
+        .container { max-width: 600px; margin: 0 auto; padding: 0 16px; }
+        .section { display: none; animation: fadeUp 0.2s; }
+        .section.active { display: block; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; color: #1e293b; margin-top: 20px; }
+        .card { background: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .amount { font-size: 1.3rem; font-weight: 700; }
+        .text-green { color: var(--success); } .text-red { color: var(--danger); }
+        
+        .clickable-card { cursor: pointer; transition: transform 0.1s; position: relative; overflow: hidden; }
+        .clickable-card:active { transform: scale(0.98); }
+        .clickable-card::after { content: "Lihat Detail >"; position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.7); font-size: 0.8rem; }
+
+        /* Forms */
+        .form-group { margin-bottom: 14px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.85rem; color: #475569; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; box-sizing: border-box; outline: none; background: #fff; transition: 0.2s; }
+        input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px #bfdbfe; }
+        .btn-save { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
+        .date-control { display: flex; gap: 8px; }
+        .btn-nav { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; width: 44px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .date-control input { text-align: center; font-weight: 600; }
+
+        /* Stok Item Styles */
+        .item-group { background: #f1f5f9; padding: 12px; border-radius: 10px; margin-bottom: 10px; border: 1px solid #e2e8f0; }
+        .item-row-1 { display: grid; grid-template-columns: 2fr 1fr 1.2fr; gap: 8px; margin-bottom: 8px; }
+        .item-row-2 { display: grid; grid-template-columns: 1.5fr 1.5fr auto; gap: 8px; align-items: center; }
+        .btn-add { background: #eff6ff; color: var(--primary); border: 1px dashed var(--primary); width: 100%; padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; margin-bottom: 15px; }
+
+        /* Table Styles */
+        .tabs { display: flex; background: #e2e8f0; padding: 4px; border-radius: 10px; margin-bottom: 15px; }
+        .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; border-radius: 8px; font-weight: 600; color: #64748b; cursor: pointer; }
+        .tab-btn.active { background: white; color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        th { text-align: left; padding: 10px 5px; color: #64748b; font-size: 0.75rem; border-bottom: 2px solid #f1f5f9; text-transform: uppercase; letter-spacing: 0.5px; }
+        td { padding: 12px 5px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+        
+        .row-title { font-weight: 500; color: var(--text); font-size: 0.9rem; margin-bottom: 2px; line-height: 1.4; }
+        .section-header { 
+            background: #f8fafc; padding: 8px 10px; border-radius: 6px; 
+            font-size: 0.8rem; font-weight: 700; color: #64748b; 
+            margin: 15px 0 5px 0; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid #e2e8f0;
+        }
+
+        /* Modals */
+        .modal-overlay { 
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; 
+            display: flex; align-items: flex-end; justify-content: center;
+            visibility: hidden; opacity: 0; transition: 0.3s; backdrop-filter: blur(2px);
+        }
+        .modal-overlay.show { visibility: visible; opacity: 1; }
+        .modal-sheet { 
+            background: white; width: 100%; max-width: 600px; border-radius: 20px 20px 0 0; padding: 24px; 
+            transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); max-height: 90vh; overflow-y: auto;
+        }
+        .modal-overlay.show .modal-sheet { transform: translateY(0); }
+        .modal-center {
+            background: white; width: 90%; max-width: 320px; border-radius: 16px; padding: 24px;
+            transform: scale(0.9); transition: transform 0.2s; align-self: center; text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .modal-overlay.show .modal-center { transform: scale(1); }
+
+        /* Utils */
+        #loading { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2500; display: none; place-items: center; font-weight: 600; color: var(--primary); }
+        #loading.show { display: grid; }
+        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-20px); background: #1e293b; color: white; padding: 10px 20px; border-radius: 50px; z-index: 3000; opacity: 0; transition: 0.3s; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    </style>
+</head>
+<body>
+
+    <div id="loading"><div>Sedang memproses...</div></div>
+    <div id="toast">Notifikasi</div>
+
+    <div id="modal-edit" class="modal-overlay">
+        <div class="modal-sheet">
+            <h3 style="margin-top:0; margin-bottom:20px;">Edit Transaksi</h3>
+            <input type="hidden" id="edit-id">
+            
+            <div class="form-group">
+                <label>Tanggal</label>
+                <input type="date" id="edit-date">
+            </div>
+            
+            <div class="form-group">
+                <label>Kategori</label>
+                <select id="edit-category">
+                    <option value="Pagi">Pagi</option>
+                    <option value="Sore">Sore</option>
+                    <option value="Stok">Stok</option>
+                    <option value="Kontrakan">Kontrakan</option>
+                    <option value="Lainnya">Lainnya</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Rincian / Catatan</label>
+                <input type="text" id="edit-note" placeholder="Nama Barang / Ket">
+            </div>
+
+            <div class="form-group">
+                <label>Nominal (Rp)</label>
+                <input type="number" id="edit-amount" style="font-weight:bold; font-size:1.1rem;">
+            </div>
+
+            <div style="display:flex; gap:12px; margin-top:24px;">
+                <button onclick="closeModal('modal-edit')" style="flex:1; padding:14px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-weight:600;">Batal</button>
+                <button onclick="updateTransaction()" style="flex:1; padding:14px; background:var(--primary); color:white; border:none; border-radius:10px; font-weight:600;">Simpan Perubahan</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-confirm" class="modal-overlay">
+        <div class="modal-center">
+            <span class="material-icons-round" style="font-size:48px; color:var(--danger); margin-bottom:10px;">delete_forever</span>
+            <h3 style="margin:0 0 10px 0;">Hapus Data?</h3>
+            <p style="color:#64748b; margin-bottom:20px; font-size:0.9rem;">Data yang dihapus tidak dapat dikembalikan.</p>
+            <input type="hidden" id="delete-id">
+            <div style="display:flex; gap:10px;">
+                <button onclick="closeModal('modal-confirm')" style="flex:1; padding:10px; border-radius:8px; border:1px solid #e2e8f0; background:white; font-weight:600;">Batal</button>
+                <button onclick="confirmDelete()" style="flex:1; padding:10px; border-radius:8px; border:none; background:var(--danger); color:white; font-weight:600;">Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        
+        <div id="beranda" class="section active">
+            
+            <h2 style="margin-top:10px;">Ringkasan Hari Ini</h2>
+            
+            <div class="card clickable-card" onclick="goToReport('harian')" style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; border:none;">
+                <div style="font-size:0.85rem; opacity:0.9; margin-bottom:4px;">SISA KAS HARIAN</div>
+                <div class="amount" id="today-balance" style="font-size:2rem;">Rp 0</div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="card">
+                    <div style="font-size:0.75rem; color:#64748b; font-weight:700; text-transform:uppercase;">Pemasukan</div>
+                    <div class="amount text-green" id="today-in" style="font-size:1.1rem;">Rp 0</div>
+                </div>
+                <div class="card">
+                    <div style="font-size:0.75rem; color:#64748b; font-weight:700; text-transform:uppercase;">Pengeluaran</div>
+                    <div class="amount text-red" id="today-out" style="font-size:1.1rem;">Rp 0</div>
+                </div>
+            </div>
+            
+            <h2 style="margin-top:20px">Ringkasan Bulan Ini</h2>
+            
+            <div class="card clickable-card" onclick="goToReport('bulanan')" style="background: #1e293b; color: white; border:none;">
+                <div style="font-size:0.85rem; opacity:0.9; margin-bottom:4px;">SALDO (PROFIT)</div>
+                <div class="amount" id="month-balance" style="font-size:2rem;">Rp 0</div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="card">
+                    <div style="font-size:0.75rem; color:#64748b; font-weight:700; text-transform:uppercase;">Total Masuk</div>
+                    <div class="amount text-green" id="month-in" style="font-size:1.1rem;">Rp 0</div>
+                </div>
+                <div class="card">
+                    <div style="font-size:0.75rem; color:#64748b; font-weight:700; text-transform:uppercase;">Total Keluar</div>
+                    <div class="amount text-red" id="month-out" style="font-size:1.1rem;">Rp 0</div>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="catat" class="section">
+            <h2>Catat Transaksi</h2>
+            <div class="card">
+                <div class="form-group">
+                    <label>Tanggal</label>
+                    <div class="date-control">
+                        <button class="btn-nav" onclick="adjustDate(-1, 'input-date')"><span class="material-icons-round">chevron_left</span></button>
+                        <input type="date" id="input-date">
+                        <button class="btn-nav" onclick="adjustDate(1, 'input-date')"><span class="material-icons-round">chevron_right</span></button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Jenis & Kategori</label>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="input-type" onchange="handleTypeChange()">
+                            <option value="pemasukan">Pemasukan</option>
+                            <option value="pengeluaran">Pengeluaran</option>
+                        </select>
+                        <select id="input-category" onchange="toggleFormMode()"></select>
+                    </div>
+                </div>
+
+                <div id="mode-simple">
+                    <div class="form-group">
+                        <label>Nominal (Rp)</label>
+                        <input type="number" id="input-amount" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Catatan (Opsional)</label>
+                        <input type="text" id="input-note" placeholder="Contoh: Kopi, Wifi, dll">
+                    </div>
+                </div>
+
+                <div id="mode-stock" style="display:none;">
+                    <label style="margin-bottom:10px; display:block;">Daftar Belanja Stok</label>
+                    <div id="items-container"></div>
+                    <button class="btn-add" onclick="addItemRow()">+ Tambah Barang</button>
+                    <div style="text-align:right; font-weight:bold; margin-bottom:10px; font-size:1.1rem; border-top:1px dashed #cbd5e1; padding-top:10px;">
+                        Total: <span id="stock-total-display">Rp 0</span>
+                    </div>
+                </div>
+                
+                <button id="btn-submit" class="btn-save" onclick="saveTransaction()">Simpan Transaksi</button>
+            </div>
+        </div>
+
+        <div id="laporan" class="section">
+            <h2>Laporan Keuangan</h2>
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchReportTab('harian')">Harian</button>
+                <button class="tab-btn" onclick="switchReportTab('bulanan')">Bulanan</button>
+            </div>
+
+            <div id="view-harian">
+                <div class="card" style="padding:10px;">
+                    <div class="date-control">
+                        <button class="btn-nav" onclick="adjustDate(-1, 'report-date')"><span class="material-icons-round">chevron_left</span></button>
+                        <input type="date" id="report-date" onchange="renderDailyReport()">
+                        <button class="btn-nav" onclick="adjustDate(1, 'report-date')"><span class="material-icons-round">chevron_right</span></button>
+                    </div>
+                </div>
+                
+                <div id="daily-container"></div>
+            </div>
+
+            <div id="view-bulanan" style="display:none;">
+                <div class="card" style="padding:10px;">
+                    <div class="date-control">
+                        <button class="btn-nav" onclick="adjustMonth(-1)"><span class="material-icons-round">chevron_left</span></button>
+                        <input type="month" id="report-month" onchange="renderMonthlyReport()">
+                        <button class="btn-nav" onclick="adjustMonth(1)"><span class="material-icons-round">chevron_right</span></button>
+                    </div>
+                </div>
+                
+                <div class="card" style="padding:0 10px; margin-bottom: 20px;">
+                    <div class="section-header">Rincian Per Tanggal</div>
+                    <table id="monthly-table-date">
+                        <thead>
+                            <tr>
+                                <th width="15%">Tgl</th>
+                                <th width="25%" align="right">Masuk</th>
+                                <th width="25%" align="right">Keluar</th>
+                                <th width="35%" align="right">Sisa</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthly-body-date"></tbody>
+                    </table>
+                </div>
+
+                <div class="card" style="padding:0 10px;">
+                    <div class="section-header">Rincian Per Kategori</div>
+                    <table id="monthly-table-cat">
+                        <thead>
+                            <tr>
+                                <th width="60%">Kategori</th>
+                                <th width="40%" style="text-align:right">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monthly-body-cat"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="navbar">
+        <button class="nav-btn" onclick="nav('catat')"><span class="material-icons-round">edit_note</span>Catat</button>
+        <button class="nav-btn active" onclick="nav('beranda')"><span class="material-icons-round">dashboard</span>Beranda</button>
+        <button class="nav-btn" onclick="nav('laporan')"><span class="material-icons-round">receipt_long</span>Laporan</button>
+    </nav>
+
+    <script>
+        // State
+        let transactions = [];
+        let currentTab = 'harian';
+
+        // Init
+        document.getElementById('input-date').valueAsDate = new Date();
+        document.getElementById('report-date').valueAsDate = new Date();
+        document.getElementById('report-month').value = new Date().toISOString().slice(0, 7);
+        
+        document.addEventListener("DOMContentLoaded", () => {
+            if (typeof supabaseClient !== 'undefined') {
+                fetchTransactions();
+                handleTypeChange();
+            } else {
+                toast('Error: File config.js tidak ditemukan!', 'error');
+            }
+        });
+
+        // --- 1. DATA & DASHBOARD ---
+        async function fetchTransactions() {
+            loading(true);
+            const { data, error } = await supabaseClient.from('transactions').select('*').order('created_at', { ascending: false });
+            loading(false);
+            if (error) { toast('Error: ' + error.message, 'error'); return; }
+            transactions = data || [];
+            updateDashboard();
+            renderDailyReport();
+            renderMonthlyReport();
+        }
+
+        function updateDashboard() {
+            const today = new Date().toISOString().split('T')[0];
+            const month = today.slice(0, 7);
+            
+            let dIn=0, dOut=0; // Harian
+            let mIn=0, mOut=0; // Bulanan
+
+            transactions.forEach(tx => {
+                const d = tx.date;
+                // Hitung Harian
+                if(d === today) tx.type==='pemasukan' ? dIn+=tx.amount : dOut+=tx.amount;
+                // Hitung Bulanan
+                if(d.startsWith(month)) tx.type==='pemasukan' ? mIn+=tx.amount : mOut+=tx.amount;
+            });
+
+            // Update DOM Harian
+            setTxt('today-in', fmt(dIn)); 
+            setTxt('today-out', fmt(dOut));
+            setTxt('today-balance', fmt(dIn - dOut));
+
+            // Update DOM Bulanan
+            setTxt('month-in', fmt(mIn));
+            setTxt('month-out', fmt(mOut));
+            setTxt('month-balance', fmt(mIn - mOut));
+        }
+
+        function goToReport(type) {
+            nav('laporan');
+            switchReportTab(type);
+        }
+
+        // --- 2. LOGIKA CATAT ---
+        function handleTypeChange() {
+            const type = getVal('input-type');
+            const catEl = document.getElementById('input-category');
+            catEl.innerHTML = '';
+            
+            const opts = type === 'pemasukan' 
+                ? ['Pagi', 'Sore', 'Lainnya'] 
+                : ['Stok', 'Kontrakan', 'Lainnya'];
+            
+            opts.forEach(o => catEl.innerHTML += `<option value="${o}">${o}</option>`);
+            toggleFormMode();
+        }
+
+        function toggleFormMode() {
+            const type = getVal('input-type');
+            const cat = getVal('input-category');
+            const isStock = (type === 'pengeluaran' && cat === 'Stok');
+            
+            document.getElementById('mode-simple').style.display = isStock ? 'none' : 'block';
+            document.getElementById('mode-stock').style.display = isStock ? 'block' : 'none';
+            if(isStock && document.getElementById('items-container').children.length === 0) addItemRow();
+        }
+
+        function addItemRow() {
+            const div = document.createElement('div');
+            div.className = 'item-group';
+            div.innerHTML = `
+                <div class="item-row-1">
+                    <input type="text" class="itm-name" placeholder="Nama Barang">
+                    <input type="number" class="itm-qty" placeholder="Qty" oninput="calcRowTotal(this)">
+                    <select class="itm-unit">
+                        <option value="Pcs">Pcs</option><option value="Kg">Kg</option>
+                        <option value="Dus">Dus</option><option value="Pak">Pak</option>
+                        <option value="Botol">Botol</option><option value="Liter">Liter</option>
+                    </select>
+                </div>
+                <div class="item-row-2">
+                    <input type="number" class="itm-price" placeholder="@ Harga Satuan" oninput="calcRowTotal(this)">
+                    <div style="font-weight:bold; font-size:0.9rem; text-align:right" class="itm-subtotal">Rp 0</div>
+                    <button onclick="this.closest('.item-group').remove(); calcGrandTotal()" style="color:red; background:none; border:none;"><span class="material-icons-round">delete</span></button>
+                </div>
+            `;
+            document.getElementById('items-container').appendChild(div);
+        }
+
+        function calcRowTotal(el) {
+            const group = el.closest('.item-group');
+            const qty = parseFloat(group.querySelector('.itm-qty').value) || 0;
+            const price = parseFloat(group.querySelector('.itm-price').value) || 0;
+            const subtotal = qty * price;
+            group.querySelector('.itm-subtotal').innerText = fmt(subtotal);
+            group.dataset.total = subtotal;
+            calcGrandTotal();
+        }
+
+        function calcGrandTotal() {
+            let total = 0;
+            document.querySelectorAll('.item-group').forEach(grp => { total += parseFloat(grp.dataset.total) || 0; });
+            setTxt('stock-total-display', fmt(total));
+        }
+
+        async function saveTransaction() {
+            const date = getVal('input-date');
+            const type = getVal('input-type');
+            const cat = getVal('input-category');
+            const btn = document.getElementById('btn-submit');
+            let payload = [];
+
+            if(type === 'pengeluaran' && cat === 'Stok') {
+                const items = document.querySelectorAll('.item-group');
+                items.forEach(grp => {
+                    const name = grp.querySelector('.itm-name').value;
+                    const qty = grp.querySelector('.itm-qty').value;
+                    const unit = grp.querySelector('.itm-unit').value;
+                    const unitPrice = parseFloat(grp.querySelector('.itm-price').value);
+                    const total = parseFloat(grp.dataset.total);
+                    if(name && qty && unitPrice) {
+                        payload.push({
+                            date, type, category: cat, amount: total,
+                            note: `${name} (${qty} ${unit} @ ${fmt(unitPrice)})`
+                        });
+                    }
+                });
+                if(payload.length === 0) { toast("Data barang belum lengkap", "error"); return; }
+            } else {
+                const amount = parseFloat(getVal('input-amount'));
+                const note = getVal('input-note');
+                if(!amount) { toast("Isi nominal", "error"); return; }
+                payload.push({ date, type, category: cat, amount, note });
+            }
+
+            btn.disabled = true; btn.innerText = "Menyimpan...";
+            const { error } = await supabaseClient.from('transactions').insert(payload);
+            btn.disabled = false; btn.innerText = "Simpan Transaksi";
+
+            if(error) toast(error.message, 'error');
+            else {
+                toast("Tersimpan!");
+                document.getElementById('input-amount').value = '';
+                document.getElementById('input-note').value = '';
+                document.getElementById('items-container').innerHTML = '';
+                setTxt('stock-total-display', 'Rp 0');
+                if(type === 'pengeluaran' && cat === 'Stok') addItemRow();
+                fetchTransactions();
+                nav('beranda');
+            }
+        }
+
+        // --- 3. LAPORAN HARIAN (FORMAT: "Kategori (Catatan)", TANPA BADGE) ---
+        function renderDailyReport() {
+            const date = getVal('report-date');
+            const container = document.getElementById('daily-container');
+            container.innerHTML = '';
+            
+            const dailyData = transactions.filter(t => t.date === date);
+            
+            if(dailyData.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:30px; color:#94a3b8;">Belum ada transaksi hari ini</div>';
+                return;
+            }
+
+            const incomes = dailyData.filter(t => t.type === 'pemasukan');
+            const expenses = dailyData.filter(t => t.type === 'pengeluaran');
+
+            const renderBlock = (title, list, isIncome) => {
+                let html = `<div class="card" style="padding:0 10px; margin-bottom:15px;">`;
+                html += `<div class="section-header">${title}</div>`;
+                html += `<table style="width:100%">`;
+                
+                if(list.length === 0) {
+                    html += `<tr><td style="text-align:center; color:#cbd5e1; padding:15px;">-</td></tr>`;
+                } else {
+                    list.forEach(tx => {
+                        const time = tx.created_at ? new Date(tx.created_at).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) : '-';
+                        
+                        // FIX: Stok/Modal -> Stok (jika data lama)
+                        let cleanCat = tx.category === 'Stok/Modal' ? 'Stok' : tx.category;
+
+                        // FORMAT: "Kategori (Catatan)"
+                        let displayText = cleanCat;
+                        if(tx.note && tx.note.trim() !== "") {
+                            displayText += ` <span style="font-weight:400; color:#64748b;">(${tx.note})</span>`;
+                        }
+
+                        html += `
+                            <tr onclick="openEdit(${tx.id})">
+                                <td width="15%" style="color:#64748b; font-size:0.8rem;">${time}</td>
+                                <td width="55%">
+                                    <div class="row-title">${displayText}</div>
+                                </td>
+                                <td width="30%" align="right" class="${isIncome?'text-green':'text-red'}" style="font-weight:bold;">
+                                    ${fmt(tx.amount)}
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+                html += `</table></div>`;
+                return html;
+            };
+
+            container.innerHTML += renderBlock('PEMASUKAN', incomes, true);
+            container.innerHTML += renderBlock('PENGELUARAN', expenses, false);
+        }
+
+        // --- 4. LAPORAN BULANAN ---
+        function renderMonthlyReport() {
+            const month = getVal('report-month');
+            const tbodyDate = document.getElementById('monthly-body-date');
+            const tbodyCat = document.getElementById('monthly-body-cat');
+            tbodyDate.innerHTML = '';
+            tbodyCat.innerHTML = '';
+
+            const groupedDate = {};
+            const groupedCat = { pemasukan: {}, pengeluaran: {} };
+
+            transactions.forEach(tx => {
+                if(tx.date.startsWith(month)) {
+                    // FIX: Stok/Modal -> Stok (jika data lama)
+                    let cleanCat = tx.category === 'Stok/Modal' ? 'Stok' : tx.category;
+
+                    // Group Date
+                    if(!groupedDate[tx.date]) groupedDate[tx.date] = { in:0, out:0 };
+                    tx.type === 'pemasukan' ? groupedDate[tx.date].in += tx.amount : groupedDate[tx.date].out += tx.amount;
+                    
+                    // Group Category
+                    const target = tx.type === 'pemasukan' ? groupedCat.pemasukan : groupedCat.pengeluaran;
+                    if(!target[cleanCat]) target[cleanCat] = 0;
+                    target[cleanCat] += tx.amount;
+                }
+            });
+
+            // Tabel 1: Per Tanggal (4 Kolom)
+            const dates = Object.keys(groupedDate).sort().reverse();
+            if(dates.length === 0) { 
+                tbodyDate.innerHTML = '<tr><td colspan="4" align="center" style="padding:20px; color:#94a3b8;">Kosong</td></tr>';
+            } else {
+                dates.forEach(d => {
+                    const day = d.split('-')[2];
+                    const item = groupedDate[d];
+                    const net = item.in - item.out;
+                    tbodyDate.innerHTML += `
+                        <tr>
+                            <td style="font-weight:600;">${day}</td>
+                            <td align="right" class="text-green">${fmt(item.in)}</td>
+                            <td align="right" class="text-red">${fmt(item.out)}</td>
+                            <td align="right" style="font-weight:bold; ${net>=0?'color:var(--success)':'color:var(--danger)'}">
+                                ${fmt(net)}
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            // Tabel 2: Per Kategori
+            const renderCatRows = (title, data, colorClass) => {
+                let h = `<tr><td colspan="2" style="background:#f1f5f9; font-weight:bold; font-size:0.8rem; color:#64748b;">${title}</td></tr>`;
+                if(Object.keys(data).length === 0) h += `<tr><td colspan="2" style="color:#cbd5e1; padding:10px;">-</td></tr>`;
+                for(const [cat, val] of Object.entries(data)) {
+                    h += `<tr><td>${cat}</td><td align="right" class="${colorClass}" style="font-weight:bold;">${fmt(val)}</td></tr>`;
+                }
+                return h;
+            };
+
+            tbodyCat.innerHTML += renderCatRows('PEMASUKAN', groupedCat.pemasukan, 'text-green');
+            tbodyCat.innerHTML += renderCatRows('PENGELUARAN', groupedCat.pengeluaran, 'text-red');
+        }
+
+        // --- UTILS ---
+        async function updateTransaction() {
+            const id = getVal('edit-id');
+            const date = getVal('edit-date');
+            const note = getVal('edit-note');
+            const cat = getVal('edit-category');
+            const amount = parseFloat(getVal('edit-amount'));
+            
+            if(!amount) return toast("Nominal error", "error");
+            loading(true);
+            const { error } = await supabaseClient.from('transactions').update({ date, note, category: cat, amount }).eq('id', id);
+            loading(false);
+            if(error) toast("Gagal update", "error");
+            else { closeModal('modal-edit'); toast("Updated"); fetchTransactions(); }
+        }
+
+        function confirmDelete() {
+            const id = getVal('delete-id');
+            deleteTx(id);
+        }
+
+        async function deleteTx(id) {
+            loading(true);
+            const { error } = await supabaseClient.from('transactions').delete().eq('id', id);
+            loading(false);
+            if(error) toast(error.message, 'error');
+            else { closeModal('modal-confirm'); toast("Terhapus"); fetchTransactions(); }
+        }
+
+        function openEdit(id) {
+            const tx = transactions.find(t => t.id === id);
+            if(!tx) return;
+            document.getElementById('edit-id').value = id;
+            document.getElementById('edit-date').value = tx.date;
+            
+            // Fix stok/modal di edit
+            let cleanCat = tx.category === 'Stok/Modal' ? 'Stok' : tx.category;
+            document.getElementById('edit-category').value = cleanCat;
+            
+            document.getElementById('edit-note').value = tx.note || '';
+            document.getElementById('edit-amount').value = tx.amount;
+            
+            const modalBody = document.querySelector('#modal-edit .modal-sheet');
+            let delBtn = document.getElementById('btn-delete-inside-edit');
+            if(!delBtn) {
+                 delBtn = document.createElement('div');
+                 delBtn.id = 'btn-delete-inside-edit';
+                 delBtn.innerHTML = `<div style="text-align:center; margin-top:20px; padding-top:15px; border-top:1px solid #f1f5f9;">
+                    <button onclick="openDeleteFromEdit()" style="background:none; border:none; color:#ef4444; font-weight:600; font-size:0.9rem;">Hapus Data Ini</button>
+                 </div>`;
+                 modalBody.appendChild(delBtn);
+            }
+            document.getElementById('modal-edit').classList.add('show');
+        }
+
+        function openDeleteFromEdit() {
+            const id = getVal('edit-id');
+            closeModal('modal-edit');
+            document.getElementById('delete-id').value = id;
+            document.getElementById('modal-confirm').classList.add('show');
+        }
+
+        function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+        function nav(id) {
+            document.querySelectorAll('.section').forEach(e=>e.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(e=>e.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            const idx = id==='catat'?0 : id==='beranda'?1 : 2;
+            document.querySelectorAll('.nav-btn')[idx].classList.add('active');
+            if(id==='beranda') updateDashboard();
+            if(id==='laporan') { renderDailyReport(); renderMonthlyReport(); }
+        }
+        function switchReportTab(t) {
+            document.getElementById('view-harian').style.display = t==='harian'?'block':'none';
+            document.getElementById('view-bulanan').style.display = t==='bulanan'?'block':'none';
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+        function adjustDate(d, id) {
+            const el = document.getElementById(id);
+            const dt = new Date(el.value); dt.setDate(dt.getDate()+d);
+            el.value = dt.toISOString().split('T')[0];
+            if(id === 'report-date') renderDailyReport();
+        }
+        function adjustMonth(m) {
+            const el = document.getElementById('report-month');
+            let [y, mo] = el.value.split('-').map(Number);
+            const dt = new Date(y, mo-1+m, 1);
+            el.value = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+            renderMonthlyReport();
+        }
+        function fmt(n) { return new Intl.NumberFormat('id-ID', {style:'currency', currency:'IDR', maximumFractionDigits:0}).format(n); }
+        function getVal(id) { return document.getElementById(id).value; }
+        function setTxt(id, v) { document.getElementById(id).innerText = v; }
+        function toast(m, t='success') { const el = document.getElementById('toast'); el.innerText=m; el.style.background=t==='error'?'#ef4444':'#1e293b'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'), 3000); }
+        function loading(s) { document.getElementById('loading').className = s?'show':''; }
+    </script>
+</body>
+</html>
